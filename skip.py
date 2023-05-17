@@ -5,6 +5,10 @@ from flask import Flask, request
 import webbrowser
 import logging
 from threading import Thread
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -19,8 +23,8 @@ expires_in = 0
 
 url = 'https://api.spotify.com/v1/me/player'
 
-client_id = 
-client_secret = 
+client_id = os.environ.get('CLIENT_ID')
+client_secret = os.environ.get('CLIENT_SECRET')
 
 webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:5000/&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read')
 
