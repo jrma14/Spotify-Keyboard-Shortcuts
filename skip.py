@@ -19,8 +19,8 @@ expires_in = 0
 
 url = 'https://api.spotify.com/v1/me/player'
 
-client_id = '2170060f263a41808d40b790f2735b18'
-client_secret = 'caeb428c60ec447281e6859eb9e504db'
+client_id = 
+client_secret = 
 
 webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:5000/&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read')
 
