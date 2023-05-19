@@ -20,6 +20,7 @@ delay = 0.01
 access_token = ''
 refresh_token = ''
 expires_in = 0
+header = {'Authorization' : f'Bearer {access_token}'}
 
 url = 'https://api.spotify.com/v1/me/player'
 
@@ -30,6 +31,7 @@ webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&clie
 
 def skip():
     print('Controls:\n[:previous\n]:next\n\\:play/pause\nctrl + \':toggle shuffle\nctrl + l:like current song\nctrl + d:unlike current song')
+    global header
     header = {'Authorization' : f'Bearer {access_token}'}
     while True:
         if keyboard.is_pressed(']'):
@@ -38,24 +40,32 @@ def skip():
             requests.post(f'{url}/previous',headers=header)
         elif keyboard.is_pressed('\\'):
             resp = requests.get(f'{url}',headers=header)
-            resp_json = resp.json()
-            if(resp_json['is_playing']):
-                requests.put(f'{url}/pause',headers=header)
-            else:
-                requests.put(f'{url}/play',headers=header) 
+            try:
+                resp_json = resp.json()
+                if(resp_json['is_playing']):
+                    requests.put(f'{url}/pause',headers=header)
+                else:
+                    requests.put(f'{url}/play',headers=header)
+            except:
+                print(resp) 
         elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('l'):
             modifyCurrent('like')
         elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('d'):
             modifyCurrent('dislike')
         elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('\''):
-            shuffle_state = requests.get(url,headers=header).json()['shuffle_state']
-            requests.put(f'{url}/shuffle?state={not shuffle_state}',headers=header)
+            try:
+                shuffle_state = requests.get(url,headers=header).json()['shuffle_state']
+                requests.put(f'{url}/shuffle?state={not shuffle_state}',headers=header)
+            except:
+                print('shuffle could not be toggled')
         time.sleep(delay)
 
+#doesn't work, pls fix
 def refresh():
     global access_token
     global refresh_token
     global expires_in
+    global header
     while True:
         time.sleep(expires_in)
         print('Auth token expired\nRequesting a new one!')
@@ -66,11 +76,19 @@ def refresh():
             'client_secret': client_secret,
         }
         auth_response = requests.post('https://accounts.spotify.com/api/token', data=auth_payload)
-        json = auth_response.json()
-        access_token = json['access_token']
-        expires_in = json['expires_in']
+        try:
+            json = auth_response.json()
+            print(f'Old Access Token:{access_token}')
+            access_token = json['access_token']
+            header = {'Authorization' : f'Bearer {access_token}'}
+            print(f'New Access Token:{access_token}')
+            expires_in = json['expires_in']
+            print('refresh succeeded')
+        except:
+            print('refresh failed')
 
 
+#this method is very slow
 def fliplikeCurrent():
     header = {'Authorization' : f'Bearer {access_token}'}
     player = requests.get('https://api.spotify.com/v1/me/player', headers=header)
@@ -89,9 +107,13 @@ def fliplikeCurrent():
     requests.put(like_url,headers=header)
 
 def modifyCurrent(method):
-    header = {'Authorization' : f'Bearer {access_token}'}
+    global header
     player = requests.get('https://api.spotify.com/v1/me/player', headers=header)
-    player_json = player.json()
+    try:
+        player_json = player.json()
+    except:
+        print('something went wrong with the like/dislike')
+        pass
     like_url = f'https://api.spotify.com/v1/me/tracks/?ids={player_json["item"]["id"]}'
     if method == 'like':
         requests.put(like_url,headers=header)
