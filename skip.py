@@ -7,6 +7,7 @@ import logging
 from threading import Thread
 from dotenv import load_dotenv
 import os
+import pyperclip
 
 load_dotenv()
 
@@ -16,6 +17,8 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 delay = 0.01
+
+device = 'f95d5060c7e0de41cfd5fc64266bcfe84ec2fe17'
 
 access_token = ''
 refresh_token = ''
@@ -27,10 +30,10 @@ url = 'https://api.spotify.com/v1/me/player'
 client_id = os.environ.get('CLIENT_ID')
 client_secret = os.environ.get('CLIENT_SECRET')
 
-webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:5000/&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read')
+webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:5000/&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read user-top-read')
 
 def skip():
-    print('Controls:\n[:previous\n]:next\n\\:play/pause\nctrl + \':toggle shuffle\nctrl + l:like current song\nctrl + d:unlike current song')
+    print('Controls:\n[:previous\n]:next\n\\:play/pause\nctrl + \':toggle shuffle\nctrl + l:like current song\nctrl + d:unlike current song\nctrl + =:copy access token to clipboard')
     global header
     header = {'Authorization' : f'Bearer {access_token}'}
     while True:
@@ -47,7 +50,8 @@ def skip():
                 else:
                     requests.put(f'{url}/play',headers=header)
             except:
-                print(resp) 
+                requests.put(f'{url}/play?device_id={device}',headers=header)
+                print('No active device, playing on PC') 
         elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('l'):
             modifyCurrent('like')
         elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('d'):
@@ -58,6 +62,10 @@ def skip():
                 requests.put(f'{url}/shuffle?state={not shuffle_state}',headers=header)
             except:
                 print('shuffle could not be toggled')
+        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('='):
+            pyperclip.copy(access_token)
+            time.sleep(0.1)
+            print('Access Token copied to clipboard')
         time.sleep(delay)
 
 #doesn't work, pls fix
@@ -68,7 +76,7 @@ def refresh():
     global header
     while True:
         time.sleep(expires_in)
-        print('Auth token expired\nRequesting a new one!')
+        # print('Auth token expired\nRequesting a new one!')
         auth_payload = {
             'grant_type': 'refresh_token',
             'refresh_token': refresh_token,
@@ -78,12 +86,12 @@ def refresh():
         auth_response = requests.post('https://accounts.spotify.com/api/token', data=auth_payload)
         try:
             json = auth_response.json()
-            print(f'Old Access Token:{access_token}')
+            # print(f'Old Access Token:{access_token}')
             access_token = json['access_token']
             header = {'Authorization' : f'Bearer {access_token}'}
-            print(f'New Access Token:{access_token}')
+            # print(f'New Access Token:{access_token}')
             expires_in = json['expires_in']
-            print('refresh succeeded')
+            # print('refresh succeeded')
         except:
             print('refresh failed')
 
