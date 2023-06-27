@@ -4,19 +4,21 @@ import time
 from flask import Flask, request
 import webbrowser
 import logging
-from threading import Thread
+from threading import Thread, Event
 from dotenv import load_dotenv
 import os
 import pyperclip
 
 load_dotenv()
 
+exit = Event()
+
 app = Flask(__name__)
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-delay = 0.01
+delay = 0.025
 
 device = 'f95d5060c7e0de41cfd5fc64266bcfe84ec2fe17'
 
@@ -33,15 +35,15 @@ client_secret = os.environ.get('CLIENT_SECRET')
 webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:5000/&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read user-top-read')
 
 def skip():
-    print('Controls:\n[:previous\n]:next\n\\:play/pause\nctrl + \':toggle shuffle\nctrl + l:like current song\nctrl + d:unlike current song\nctrl + =:copy access token to clipboard')
+    print('Controls:\n[:previous\n]:next\n\\:play/pause\nctrl + \':toggle shuffle\nctrl + l:like current song\nctrl + d:unlike current song\nctrl + =:copy access token to clipboard\nctrl + -:refresh auth token')
     global header
     header = {'Authorization' : f'Bearer {access_token}'}
     while True:
-        if keyboard.is_pressed(']'):
+        if keyboard.is_pressed('ctrl') and keyboard.is_pressed(']'):
             requests.post(f'{url}/next',headers=header)
-        elif keyboard.is_pressed('['):
+        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('['):
             requests.post(f'{url}/previous',headers=header)
-        elif keyboard.is_pressed('\\'):
+        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('\\'):
             resp = requests.get(f'{url}',headers=header)
             try:
                 resp_json = resp.json()
@@ -66,6 +68,8 @@ def skip():
             pyperclip.copy(access_token)
             time.sleep(0.1)
             print('Access Token copied to clipboard')
+        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('-'):
+            exit.set()
         time.sleep(delay)
 
 #doesn't work, pls fix
@@ -75,8 +79,8 @@ def refresh():
     global expires_in
     global header
     while True:
-        time.sleep(expires_in)
-        # print('Auth token expired\nRequesting a new one!')
+        exit.wait(expires_in)
+        print('Auth token expired\nRequesting a new one!')
         auth_payload = {
             'grant_type': 'refresh_token',
             'refresh_token': refresh_token,
@@ -84,6 +88,7 @@ def refresh():
             'client_secret': client_secret,
         }
         auth_response = requests.post('https://accounts.spotify.com/api/token', data=auth_payload)
+        exit.clear()
         try:
             json = auth_response.json()
             # print(f'Old Access Token:{access_token}')
