@@ -35,7 +35,7 @@ client_secret = os.environ.get('CLIENT_SECRET')
 webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:5000/&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read user-top-read')
 
 def skip():
-    print('Controls:\n[:previous\n]:next\n\\:play/pause\nctrl + \':toggle shuffle\nctrl + l:like current song\nctrl + d:unlike current song\nctrl + =:copy access token to clipboard\nctrl + -:refresh auth token')
+    print('Controls:\n[:previous\n]:next\n\\:play/pause\nctrl + \':toggle shuffle\nctrl + l:like current song\nctrl + d:unlike current song\nctrl + =:copy access token to clipboard\nctrl + -:refresh auth token\nctrl + up:volume up\nctrl + down:volume down')
     global header
     header = {'Authorization' : f'Bearer {access_token}'}
     while True:
@@ -70,6 +70,20 @@ def skip():
             print('Access Token copied to clipboard')
         elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('-'):
             exit.set()
+        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('up arrow'):
+            res = requests.get(f'{url}',headers=header).json()
+            vol = res['device']['volume_percent']
+            vol += 10
+            if vol > 100:
+                vol = 100
+            requests.put(f'{url}/volume?volume_percent={vol}',headers=header)
+        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('down arrow'):
+            res = requests.get(f'{url}',headers=header).json()
+            vol = res['device']['volume_percent']
+            vol -= 10
+            if vol < 0:
+                vol = 0
+            res = requests.put(f'{url}/volume?volume_percent={vol}',headers=header)
         time.sleep(delay)
 
 #doesn't work, pls fix
