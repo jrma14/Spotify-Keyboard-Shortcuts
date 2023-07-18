@@ -27,21 +27,23 @@ refresh_token = ''
 expires_in = 0
 header = {'Authorization' : f'Bearer {access_token}'}
 
+REDIRECT = 'http://localhost:5000/'
+
 url = 'https://api.spotify.com/v1/me/player'
 
 client_id = os.environ.get('CLIENT_ID')
 client_secret = os.environ.get('CLIENT_SECRET')
 
-webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri=http://localhost:5000/&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read user-top-read')
+webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri={REDIRECT}&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read user-top-read')
 
 def skip():
-    print('Controls:\n[:previous\n]:next\n\\:play/pause\nctrl + \':toggle shuffle\nctrl + l:like current song\nctrl + d:unlike current song\nctrl + =:copy access token to clipboard\nctrl + -:refresh auth token\nctrl + up:volume up\nctrl + down:volume down')
+    print('Controls:\nctrl + [:previous\nctrl + ]:next\nctrl + \\:play/pause\nctrl + \':toggle shuffle\nctrl + l:like current song\nctrl + d:unlike current song\nctrl + =:copy access token to clipboard\nctrl + -:refresh auth token\nctrl + up:volume up\nctrl + down:volume down')
     global header
     header = {'Authorization' : f'Bearer {access_token}'}
     while True:
-        if keyboard.is_pressed('ctrl') and keyboard.is_pressed(']'):
+        if keyboard.is_pressed('ctrl') and keyboard.is_pressed('right arrow'):
             requests.post(f'{url}/next',headers=header)
-        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('['):
+        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('left arrow'):
             requests.post(f'{url}/previous',headers=header)
         elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('\\'):
             resp = requests.get(f'{url}',headers=header)
@@ -52,8 +54,10 @@ def skip():
                 else:
                     requests.put(f'{url}/play',headers=header)
             except:
-                requests.put(f'{url}/play?device_id={device}',headers=header)
-                print('No active device, playing on PC') 
+                res = requests.put(f'{url}/play?device_id={device}',headers=header)
+                if res.status_code != 204:
+                    exit.set()
+                print('No active device, playing on PC')
         elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('l'):
             modifyCurrent('like')
         elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('d'):
@@ -153,7 +157,7 @@ def auth():
     auth_payload = {
     'grant_type': 'authorization_code',
     'code': args['code'],
-    'redirect_uri': 'http://localhost:5000/',
+    'redirect_uri': REDIRECT,
     'client_id': client_id,
     'client_secret': client_secret,
     }    
@@ -173,4 +177,4 @@ def auth():
     ref.start()
     return 'Success!'
 
-app.run()
+app.run(port=5000)
