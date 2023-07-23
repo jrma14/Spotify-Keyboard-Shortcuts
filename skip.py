@@ -18,7 +18,7 @@ import platform
 
 load_dotenv()
 
-VERSION = '0.5'
+VERSION = '0.6'
 
 exit = Event()
 
@@ -61,7 +61,7 @@ def printControls():
 |                  APP CONTROLS                |
 ------------------------------------------------'''
     table = ""
-    tableFooter = '-------------------------------------------------'
+    tableFooter = '------------------------------------------------'
     for action in actions:
         control = ' + '.join(controls.get('all',ALL_DEFAULT)) + ' + ' + ' + '.join(controls.get(action['action'],action['default']))
         table += f"| {control:21}| {action['description']:21} |\n"
