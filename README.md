@@ -1,4 +1,4 @@
-# Spotify-API-Binding
+# Spotify Keyboard Shortcuts
 Creates keyboard shortcuts to preform various actions on spotify.
 
 Ever get annoyed of needing to switch windows just to find spotify just to skip the current song? This script fixes that issue. It allows you to set keyboard shortcuts to do various different tasks on spotify, without the need of switching windows.
@@ -14,6 +14,8 @@ pyinstaller --onefile skip.py
 ```
 
 # Running the script
+To run, you can just double click, or open the folder it's in with a terminal and run the executable from there, this is also how you add the flags described below.
+
 Make sure there is a .env file in the same directory as the executable created in the dist folder created after running the command above
 the .env should look like as follows
 ```
