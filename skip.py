@@ -13,9 +13,11 @@ from colorama import Fore
 import sys
 import json
 
+# TODO comments for documentation
+
 load_dotenv()
 
-VERSION = '0.3'
+VERSION = '0.4'
 
 exit = Event()
 
@@ -47,6 +49,7 @@ ALL_DEFAULT = ['ctrl']
 debugActions = ['copy','refresh']
 
 controls = {}
+controls_file = "controls.json"
 
 # TODO maybe fix padding if too long
 # prints out the controls of the script
@@ -159,7 +162,6 @@ def modifyCurrent(method):
 # listener for initial authorization
 @app.route('/',methods=['GET'])
 def auth():
-    cls()
     args = request.args
     auth_payload = {
     'grant_type': 'authorization_code',
@@ -253,11 +255,11 @@ actions = [
 def setControls():
     global controls
     global actions
-    with open('controls.json','r') as file:
-        try:
+    try:
+        with open(controls_file,'r') as file:
             controls = json.load(file)
-        except:
-            print(Fore.RED + "Unable to read controls.json" + Fore.RESET)
+    except:
+        print(Fore.RED + f"Unable to read {controls_file} ...\nUsing default controls" + Fore.RESET)
     if not debug:
         actions = [action for action in actions if not action['action'] in debugActions]
 
@@ -275,17 +277,22 @@ def main():
                     func()
         time.sleep(delay)
 
-# TODO make cls happen after app.run but before the get
-# TODO add controls file in options
+def flask_thread():
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        print('Exiting...')
+
 # TODO maybe get device id
 # TODO add custom icon
-# TODO make copy only work on debug
 # TODO add consoleless mode/ make console a choice
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="This script allows for global keybindings to control spotify player using the spotify API")
     parser.add_argument("-d", "--debug", action="store_true",help="Enable debug mode")
-    parser.add_argument("-v", "--version", action="store_true",help="print current version")
+    parser.add_argument("-v", "--version", action="store_true",help="Print current version")
+    parser.add_argument("--controls-file",dest="controls_file", default="controls.json",help="A json file defining the controls")
     args = parser.parse_args()
+    controls_file = args.controls_file
     if args.version:
         print(VERSION)
     else:
@@ -294,6 +301,14 @@ if __name__ == '__main__':
                 debug = True
                 print(Fore.YELLOW + "Debug mode is enabled" + Fore.RESET)
             webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri={REDIRECT}&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read user-top-read')
-            app.run(threaded=True)
+            t  = Thread(target=flask_thread)
+            t.setDaemon(True)
+            t.start()
+            cls()
+            try:
+                while True:
+                    time.sleep(1)
+            except:
+                pass
         else:
             print(Fore.RED + "Environment variables not found" + Fore.RESET + "\nTry creating a .env file in the same directory with a CLIENT_ID and CLIENT_SECRET\nRead the README for more information",file=sys.stderr)
