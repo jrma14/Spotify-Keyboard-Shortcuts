@@ -12,18 +12,20 @@ import argparse
 from colorama import Fore
 import sys
 import json
+import platform
 
 # TODO comments for documentation
 
 load_dotenv()
 
-VERSION = '0.4'
+VERSION = '0.5'
 
 exit = Event()
 
 app = Flask(__name__)
 
 debug = False
+current_device = False
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
@@ -39,7 +41,7 @@ header = {'Authorization' : f'Bearer {access_token}'}
 
 REDIRECT = 'http://localhost:5000/'
 
-url = 'https://api.spotify.com/v1/me/player'
+baseUrl = 'https://api.spotify.com/v1/me/player'
 
 client_id = os.environ.get('CLIENT_ID')
 client_secret = os.environ.get('CLIENT_SECRET')
@@ -55,6 +57,7 @@ controls_file = "controls.json"
 # prints out the controls of the script
 def printControls():
     global debug
+    if debug: print(Fore.YELLOW + "Debug mode is enabled" + Fore.RESET)
     tableHeader = '''------------------------------------------------
 |                  APP CONTROLS                |
 ------------------------------------------------'''
@@ -69,34 +72,44 @@ def printControls():
 
 def next():
     global debug
-    requests.post(f'{url}/next',headers=header)
+    requests.post(f'{baseUrl}/next',headers=header)
 
 def previous():
     global debug
-    requests.post(f'{url}/previous',headers=header)
+    requests.post(f'{baseUrl}/previous',headers=header)
 
 def playPause():
     global debug
-    resp = requests.get(f'{url}',headers=header)
+    global current_device
+    if current_device:
+        try:
+            resp = requests.get(f'{baseUrl}/devices',headers=header).json()
+            for device in resp['devices']:
+                if(device['name'] == platform.node()):
+                    device = resp['id']
+                    break
+        except:
+            print("Current device not found, try starting on spotify first")
+    resp = requests.get(f'{baseUrl}',headers=header)
     try:
         resp_json = resp.json()
         if(resp_json['is_playing']):
-            requests.put(f'{url}/pause',headers=header)
+            requests.put(f'{baseUrl}/pause',headers=header)
         else:
-            requests.put(f'{url}/play',headers=header)
+            requests.put(f'{baseUrl}/play',headers=header)
     except:
-        res = requests.put(f'{url}/play?device_id={device}',headers=header)
+        res = requests.put(f'{baseUrl}/play?device_id={device}',headers=header)
         if res.status_code != 204:
             exit.set()
         else:
-            res = requests.put(f'{url}/play?device_id={device}',headers=header)
+            res = requests.put(f'{baseUrl}/play?device_id={device}',headers=header)
         if debug: print('No active device, playing on PC')
 
 def shuffle():
     global debug
     try:
-        shuffle_state = requests.get(url,headers=header).json()['shuffle_state']
-        requests.put(f'{url}/shuffle?state={not shuffle_state}',headers=header)
+        shuffle_state = requests.get(baseUrl,headers=header).json()['shuffle_state']
+        requests.put(f'{baseUrl}/shuffle?state={not shuffle_state}',headers=header)
     except:
         if debug: print('shuffle could not be toggled')
 
@@ -108,10 +121,10 @@ def copyToClipboard():
 
 def volume(dir):
     global debug
-    res = requests.get(f'{url}',headers=header).json()
+    res = requests.get(f'{baseUrl}',headers=header).json()
     vol = res['device']['volume_percent']
     vol = min(vol + 10,100) if dir == 'up' else max(vol - 10, 0)
-    requests.put(f'{url}/volume?volume_percent={vol}',headers=header)
+    requests.put(f'{baseUrl}/volume?volume_percent={vol}',headers=header)
 
 # *Loop to refresh the authorization token once it expires
 def refresh():
@@ -283,13 +296,15 @@ def flask_thread():
     except KeyboardInterrupt:
         print('Exiting...')
 
-# TODO maybe get device id
+# TODO look at how device id is used, maybe better to just use .env and not check as it seems like it may not work
 # TODO add custom icon
+# TODO think about adding delay to arguments
 # TODO add consoleless mode/ make console a choice
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="This script allows for global keybindings to control spotify player using the spotify API")
     parser.add_argument("-d", "--debug", action="store_true",help="Enable debug mode")
     parser.add_argument("-v", "--version", action="store_true",help="Print current version")
+    parser.add_argument("--current-device",dest="current_device",action="store_true",help="Will play spotify on current device")
     parser.add_argument("--controls-file",dest="controls_file", default="controls.json",help="A json file defining the controls")
     args = parser.parse_args()
     controls_file = args.controls_file
@@ -297,12 +312,11 @@ if __name__ == '__main__':
         print(VERSION)
     else:
         if client_id != None and client_secret != None:
-            if args.debug: 
-                debug = True
-                print(Fore.YELLOW + "Debug mode is enabled" + Fore.RESET)
+            if args.debug: debug = True
+            if args.current_device: current_device = True
             webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri={REDIRECT}&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read user-top-read')
             t  = Thread(target=flask_thread)
-            t.setDaemon(True)
+            t.daemon = True
             t.start()
             cls()
             try:
