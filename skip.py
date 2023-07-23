@@ -47,7 +47,7 @@ client_secret = os.environ.get('CLIENT_SECRET')
 
 ALL_DEFAULT = ['ctrl']
 
-debugActions = ['copy','refresh']
+debugActions = ['copy','refresh','deviceID']
 
 controls = {}
 controls_file = "controls.json"
@@ -63,7 +63,7 @@ def printControls():
     table = ""
     tableFooter = '-------------------------------------------------'
     for action in actions:
-        control = '+ '.join(controls.get('all',ALL_DEFAULT)) + ' + ' + '+ '.join(controls.get(action['action'],action['default']))
+        control = ' + '.join(controls.get('all',ALL_DEFAULT)) + ' + ' + ' + '.join(controls.get(action['action'],action['default']))
         table += f"| {control:21}| {action['description']:21} |\n"
     print(tableHeader)
     print(table, end='')
@@ -102,7 +102,7 @@ def shuffle():
     except:
         if debug: print('shuffle could not be toggled')
 
-def copyToClipboard():
+def copyAccessToken():
     global debug
     pyperclip.copy(access_token)
     time.sleep(0.1)
@@ -124,7 +124,7 @@ def refresh():
     global header
     while True:
         exit.wait(expires_in)
-        if debug: print('Auth token expired\nRequesting a new one!')
+        if debug: print('Requesting a new auth token!')
         auth_payload = {
             'grant_type': 'refresh_token',
             'refresh_token': refresh_token,
@@ -186,6 +186,17 @@ def auth():
     ref.start()
     return 'Success!'
 
+def getCurrentDeviceId():
+    try:
+        resp = requests.get(f'{baseUrl}/devices',headers=header).json()
+        for device in resp['devices']:
+            if(str(device['name']).lower() == platform.node().lower()):
+                pyperclip.copy(device['id'])
+                print("Device ID copied to clipboard")
+                break
+    except Exception as e:
+        print("Could not get current device ID")
+
 # clears the screen
 def cls():
     os.system('cls' if os.name=='nt' else 'clear')
@@ -240,10 +251,16 @@ actions = [
         'function':lambda: volume('down')
     },
     {
+        'action':'deviceID',
+        'default':['0'],
+        'description':'Copy device id',
+        'function':getCurrentDeviceId
+    },
+    {
         'action':'copy',
         'default':['='],
         'description': "Copy Auth Token",
-        'function':copyToClipboard
+        'function':copyAccessToken
     },
     {
         'action':'refresh',
