@@ -8,19 +8,27 @@ from threading import Thread, Event
 from dotenv import load_dotenv
 import os
 import pyperclip
+import argparse
+from colorama import Fore
+import sys
+import json
 
 load_dotenv()
+
+VERSION = '0.3'
 
 exit = Event()
 
 app = Flask(__name__)
+
+debug = False
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 delay = 0.025
 
-device = 'f95d5060c7e0de41cfd5fc64266bcfe84ec2fe17'
+device = os.environ.get('DEVICE_ID') if os.environ.get('DEVICE_ID') != None else ''
 
 access_token = ''
 refresh_token = ''
@@ -34,71 +42,84 @@ url = 'https://api.spotify.com/v1/me/player'
 client_id = os.environ.get('CLIENT_ID')
 client_secret = os.environ.get('CLIENT_SECRET')
 
-webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri={REDIRECT}&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read user-top-read')
+ALL_DEFAULT = ['ctrl']
 
-def skip():
-    print('Controls:\nctrl + [:previous\nctrl + ]:next\nctrl + \\:play/pause\nctrl + \':toggle shuffle\nctrl + l:like current song\nctrl + d:unlike current song\nctrl + =:copy access token to clipboard\nctrl + -:refresh auth token\nctrl + up:volume up\nctrl + down:volume down')
-    global header
-    header = {'Authorization' : f'Bearer {access_token}'}
-    while True:
-        if keyboard.is_pressed('ctrl') and keyboard.is_pressed('right arrow'):
-            requests.post(f'{url}/next',headers=header)
-        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('left arrow'):
-            requests.post(f'{url}/previous',headers=header)
-        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('\\'):
-            resp = requests.get(f'{url}',headers=header)
-            try:
-                resp_json = resp.json()
-                if(resp_json['is_playing']):
-                    requests.put(f'{url}/pause',headers=header)
-                else:
-                    requests.put(f'{url}/play',headers=header)
-            except:
-                res = requests.put(f'{url}/play?device_id={device}',headers=header)
-                if res.status_code != 204:
-                    exit.set()
-                print('No active device, playing on PC')
-        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('l'):
-            modifyCurrent('like')
-        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('d'):
-            modifyCurrent('dislike')
-        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('\''):
-            try:
-                shuffle_state = requests.get(url,headers=header).json()['shuffle_state']
-                requests.put(f'{url}/shuffle?state={not shuffle_state}',headers=header)
-            except:
-                print('shuffle could not be toggled')
-        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('='):
-            pyperclip.copy(access_token)
-            time.sleep(0.1)
-            print('Access Token copied to clipboard')
-        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('-'):
+debugActions = ['copy','refresh']
+
+controls = {}
+
+# TODO maybe fix padding if too long
+# prints out the controls of the script
+def printControls():
+    global debug
+    tableHeader = '''------------------------------------------------
+|                  APP CONTROLS                |
+------------------------------------------------'''
+    table = ""
+    tableFooter = '-------------------------------------------------'
+    for action in actions:
+        control = '+ '.join(controls.get('all',ALL_DEFAULT)) + ' + ' + '+ '.join(controls.get(action['action'],action['default']))
+        table += f"| {control:21}| {action['description']:21} |\n"
+    print(tableHeader)
+    print(table, end='')
+    print(tableFooter)
+
+def next():
+    global debug
+    requests.post(f'{url}/next',headers=header)
+
+def previous():
+    global debug
+    requests.post(f'{url}/previous',headers=header)
+
+def playPause():
+    global debug
+    resp = requests.get(f'{url}',headers=header)
+    try:
+        resp_json = resp.json()
+        if(resp_json['is_playing']):
+            requests.put(f'{url}/pause',headers=header)
+        else:
+            requests.put(f'{url}/play',headers=header)
+    except:
+        res = requests.put(f'{url}/play?device_id={device}',headers=header)
+        if res.status_code != 204:
             exit.set()
-        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('up arrow'):
-            res = requests.get(f'{url}',headers=header).json()
-            vol = res['device']['volume_percent']
-            vol += 10
-            if vol > 100:
-                vol = 100
-            requests.put(f'{url}/volume?volume_percent={vol}',headers=header)
-        elif keyboard.is_pressed('ctrl') and keyboard.is_pressed('down arrow'):
-            res = requests.get(f'{url}',headers=header).json()
-            vol = res['device']['volume_percent']
-            vol -= 10
-            if vol < 0:
-                vol = 0
-            res = requests.put(f'{url}/volume?volume_percent={vol}',headers=header)
-        time.sleep(delay)
+        else:
+            res = requests.put(f'{url}/play?device_id={device}',headers=header)
+        if debug: print('No active device, playing on PC')
 
-#doesn't work, pls fix
+def shuffle():
+    global debug
+    try:
+        shuffle_state = requests.get(url,headers=header).json()['shuffle_state']
+        requests.put(f'{url}/shuffle?state={not shuffle_state}',headers=header)
+    except:
+        if debug: print('shuffle could not be toggled')
+
+def copyToClipboard():
+    global debug
+    pyperclip.copy(access_token)
+    time.sleep(0.1)
+    if debug: print('Access Token copied to clipboard')
+
+def volume(dir):
+    global debug
+    res = requests.get(f'{url}',headers=header).json()
+    vol = res['device']['volume_percent']
+    vol = min(vol + 10,100) if dir == 'up' else max(vol - 10, 0)
+    requests.put(f'{url}/volume?volume_percent={vol}',headers=header)
+
+# *Loop to refresh the authorization token once it expires
 def refresh():
+    global debug
     global access_token
     global refresh_token
     global expires_in
     global header
     while True:
         exit.wait(expires_in)
-        print('Auth token expired\nRequesting a new one!')
+        if debug: print('Auth token expired\nRequesting a new one!')
         auth_payload = {
             'grant_type': 'refresh_token',
             'refresh_token': refresh_token,
@@ -109,41 +130,25 @@ def refresh():
         exit.clear()
         try:
             json = auth_response.json()
-            # print(f'Old Access Token:{access_token}')
             access_token = json['access_token']
             header = {'Authorization' : f'Bearer {access_token}'}
-            # print(f'New Access Token:{access_token}')
             expires_in = json['expires_in']
-            # print('refresh succeeded')
         except:
-            print('refresh failed')
+            if debug: print('refresh failed')
 
-
-#this method is very slow
-def fliplikeCurrent():
-    header = {'Authorization' : f'Bearer {access_token}'}
-    player = requests.get('https://api.spotify.com/v1/me/player', headers=header)
-    player_json = player.json()
-    id = player_json["item"]["id"]
-    track_url = 'https://api.spotify.com/v1/me/tracks?limit=50'
-    like_url = f'https://api.spotify.com/v1/me/tracks/?ids={player_json["item"]["id"]}'
-    while track_url != None:
-        saved = requests.get(track_url,headers=header)
-        saved_json = saved.json()
-        track_url = saved_json['next']
-        for item in saved_json['items']:
-            # print(item)
-            if id == item['track']['id']:
-                requests.delete(like_url,headers=header)
-    requests.put(like_url,headers=header)
-
+# method to like or dislike the currently playing song
+# param: method
+#    'like' or 'dislike'
+# likes the current song if method == 'like'
+# else removes from like
 def modifyCurrent(method):
+    global debug
     global header
     player = requests.get('https://api.spotify.com/v1/me/player', headers=header)
     try:
         player_json = player.json()
     except:
-        print('something went wrong with the like/dislike')
+        if debug: print(f'Could not {method} current song')
         pass
     like_url = f'https://api.spotify.com/v1/me/tracks/?ids={player_json["item"]["id"]}'
     if method == 'like':
@@ -151,8 +156,10 @@ def modifyCurrent(method):
     else:
         requests.delete(like_url,headers=header)
 
+# listener for initial authorization
 @app.route('/',methods=['GET'])
 def auth():
+    cls()
     args = request.args
     auth_payload = {
     'grant_type': 'authorization_code',
@@ -162,7 +169,6 @@ def auth():
     'client_secret': client_secret,
     }    
     auth_response = requests.post('https://accounts.spotify.com/api/token', data=auth_payload)
-    # print(auth_response.json())
     json = auth_response.json()
     global access_token
     global refresh_token
@@ -170,11 +176,124 @@ def auth():
     access_token = json['access_token']
     refresh_token = json['refresh_token']
     expires_in = json['expires_in']
-    # print(access_token)  
-    thread = Thread(target=skip)
+    thread = Thread(target=main)
     thread.start()
     ref = Thread(target=refresh)
     ref.start()
     return 'Success!'
 
-app.run(port=5000)
+# clears the screen
+def cls():
+    os.system('cls' if os.name=='nt' else 'clear')
+
+actions = [
+    {
+        'action':'next',
+        'default':['right'],
+        'description': "Next Track",
+        'function':next
+    },
+    {
+        'action':'previous',
+        'default':['left'],
+        'description': "Previous Track",
+        'function':previous
+    },
+    {
+        'action':'play/pause',
+        'default':['\\'],
+        'description': "Play/Pause",
+        'function':playPause
+    },
+    {
+        'action':'like',
+        'default':['l'],
+        'description': "Like Current Song",
+        'function': lambda: modifyCurrent('like')
+    },
+    {
+        'action':'dislike',
+        'default':['d'],
+        'description': "Dislike Current Song",
+        'function':lambda: modifyCurrent('dislike')
+    },
+    {
+        'action':'shuffle',
+        'default':['\''],
+        'description': "Toggle Shuffle",
+        'function':shuffle
+    },
+    {
+        'action':'volume_up',
+        'default':['up'],
+        'description': "Volume Up",
+        'function':lambda: volume('up')
+    },
+    {
+        'action':'volume_down',
+        'default':['down'],
+        'description': "Volume Down",
+        'function':lambda: volume('down')
+    },
+    {
+        'action':'copy',
+        'default':['='],
+        'description': "Copy Auth Token",
+        'function':copyToClipboard
+    },
+    {
+        'action':'refresh',
+        'default':['-'],
+        'description': "Refresh Auth Token",
+        'function': exit.set
+    }
+]
+
+# TODO better error checking
+def setControls():
+    global controls
+    global actions
+    with open('controls.json','r') as file:
+        try:
+            controls = json.load(file)
+        except:
+            print(Fore.RED + "Unable to read controls.json" + Fore.RESET)
+    if not debug:
+        actions = [action for action in actions if not action['action'] in debugActions]
+
+# main logic loop with all of the keyboard listeners
+def main():
+    setControls()
+    printControls()
+    global header
+    header = {'Authorization' : f'Bearer {access_token}'}
+    while True:
+        if all(keyboard.is_pressed(key) for key in controls.get('all',ALL_DEFAULT)):
+            for act in actions:
+                action,default,func = act['action'],act['default'],act['function']
+                if all(keyboard.is_pressed(key) for key in controls.get(action,default)):
+                    func()
+        time.sleep(delay)
+
+# TODO make cls happen after app.run but before the get
+# TODO add controls file in options
+# TODO maybe get device id
+# TODO add custom icon
+# TODO make copy only work on debug
+# TODO add consoleless mode/ make console a choice
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="This script allows for global keybindings to control spotify player using the spotify API")
+    parser.add_argument("-d", "--debug", action="store_true",help="Enable debug mode")
+    parser.add_argument("-v", "--version", action="store_true",help="print current version")
+    args = parser.parse_args()
+    if args.version:
+        print(VERSION)
+    else:
+        if client_id != None and client_secret != None:
+            if args.debug: 
+                debug = True
+                print(Fore.YELLOW + "Debug mode is enabled" + Fore.RESET)
+            webbrowser.open(f'https://accounts.spotify.com/authorize?response_type=code&client_id={client_id}&redirect_uri={REDIRECT}&scope=user-modify-playback-state user-read-playback-state playlist-modify-private playlist-modify-public user-library-modify user-library-read user-top-read')
+            app.run(threaded=True)
+        else:
+            print(Fore.RED + "Environment variables not found" + Fore.RESET + "\nTry creating a .env file in the same directory with a CLIENT_ID and CLIENT_SECRET\nRead the README for more information",file=sys.stderr)

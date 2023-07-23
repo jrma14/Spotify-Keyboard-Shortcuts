@@ -1,0 +1,35 @@
+{
+    "all": [
+        "ctrl"
+    ],
+    "next": [
+        "right"
+    ],
+    "previous": [
+        "left"
+    ],
+    "play/pause": [
+        "\\"
+    ],
+    "like": [
+        "l"
+    ],
+    "dislike": [
+        "d"
+    ],
+    "shuffle": [
+        "'"
+    ],
+    "volume_up": [
+        "up"
+    ],
+    "volume_down": [
+        "down"
+    ],
+    "copy": [
+        "="
+    ],
+    "refresh": [
+        "-"
+    ]
+}
