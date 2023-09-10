@@ -1,5 +1,5 @@
 # Spotify Keyboard Shortcuts
-Creates keyboard shortcuts to preform various actions on spotify.
+Creates keyboard shortcuts to perform various actions on spotify.
 
 Ever get annoyed of needing to switch windows just to find spotify just to skip the current song? This script fixes that issue. It allows you to set keyboard shortcuts to do various different tasks on spotify, without the need of switching windows.
 
